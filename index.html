@@ -1,0 +1,49 @@
+<html>
+<head>
+    <meta charset="utf-8" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.1.0/dygraph.min.js">
+    </script>
+</head>
+<body>
+    <div id="status"></div>
+    <div id="graphdiv" style="height: 800px; width: 1600px; max-width: 100%;"></div>
+    <script type="text/javascript">
+
+function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+}
+
+function myDateFormatter(x) {
+    d = new Date(x);
+    return d.getFullYear() +
+	pad2(d.getMonth() + 1) +
+	pad2(d.getDate()) + '-' +
+	pad2(d.getHours()) + ':' +
+	pad2(d.getMinutes()) + ':' +
+	pad2(d.getSeconds());
+}
+
+g = new Dygraph(
+	document.getElementById("graphdiv"),
+	window.location.search.slice(1),
+	{
+	    labels: ["Time", "Heart", "Oxygen", "Movement"],
+	    visibility: [true, false, false],
+	    legend: "always",
+	    labelsDiv: document.getElementById('status'),
+	    color: "red",
+	    fillGraph: true,
+	    xValueParser: function(x) { return 1000*parseFloat(x); },
+	    axes: {
+		x: {
+		    valueFormatter: myDateFormatter,
+		    ticker: Dygraph.dateTicker,
+		    axisLabelFormatter: myDateFormatter,
+		},
+	    },
+	}
+	);
+
+</script>
+</body>
+</html>

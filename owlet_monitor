@@ -1,0 +1,135 @@
+#!/usr/bin/python3
+
+import sys, os, time, requests, json
+
+sess = None
+url_login = 'https://user-field.aylanetworks.com/users/sign_in'
+url_base = 'https://ads-field.aylanetworks.com/apiv1'
+url_devs = url_base + '/devices'
+url_props = None
+url_activate = None
+headers = {'Content-Type' : 'application/json', 'Accept' : 'application/json'}
+auth_token = None
+expire_time = 0
+dsn = None
+
+class FatalError(Exception):
+    pass
+
+def log(s):
+    sys.stderr.write(s + '\n')
+    sys.stderr.flush()
+
+def record(s):
+    sys.stdout.write(s + '\n')
+    sys.stdout.flush()
+
+def login():
+    global auth_token, expire_time
+    try:
+        login_payload = {
+          "user": {
+            "email": os.environ['OWLET_USER'],
+            "password": os.environ['OWLET_PASS'],
+            "application": { "app_id": "OWL-id", "app_secret": "OWL-4163742" }
+          }
+        }
+    except KeyError as e:
+        raise FatalError("OWLET_USER or OWLET_PASS env var is not defined")
+    if auth_token is None or (expire_time <= time.time()):
+        log('Logging in')
+        if 'Authorization' in headers: del headers['Authorization']
+        r = sess.post(url_login, json=login_payload, headers=headers)
+        r.raise_for_status()
+        r = r.json()
+        auth_token = r['access_token']
+        # we will re-auth 60 seconds before the token expires
+        expire_time = time.time() + r['expires_in'] - 60
+        headers['Authorization'] = 'auth_token ' + auth_token
+        log('Auth token %s' % auth_token)
+
+def fetch_dsn():
+    global dsn, url_props
+    if dsn is None:
+        log('Getting DSN')
+        r = sess.get(url_devs, headers=headers)
+        r.raise_for_status()
+        devs = r.json()
+        if len(devs) < 1:
+            raise FatalError('Found zero Owlet monitors')
+        dsn = devs[0]['device']['dsn']
+        log('Found Owlet monitor device serial number %s' % dsn)
+        url_props = url_base + '/dsns/' + dsn + '/properties'
+
+def reactivate():
+    payload = { "datapoints": { "value": 1 } }
+    r = sess.post(url_activate, json=payload, headers=headers)
+    r.raise_for_status()
+
+def fetch_props():
+    global url_activate
+    my_props = {}
+    r = sess.get(url_props, headers=headers)
+    r.raise_for_status()
+    props = r.json()
+    for prop in props:
+        n = prop['property']['name']
+        del(prop['property']['name'])
+        my_props[n] = prop['property']
+        # Ayla cloud API data is updated only when APP_ACTIVE periodically
+        # reset to 1.
+        if n == 'APP_ACTIVE':
+            if url_activate is None:
+                url_activate = url_base + \
+                        '/properties/' + str(my_props[n]['key']) + '/datapoints'
+            reactivate()
+    return my_props
+
+def record_vitals(p):
+    charge_status = p['CHARGE_STATUS']['value']
+    base_station_on = p['BASE_STATION_ON']['value']
+    heart = "%d" % p['HEART_RATE']['value']
+    oxy = "%d" % p['OXYGEN_LEVEL']['value']
+    mov = "wiggling" if p['MOVEMENT']['value'] else "still"
+    disp = "%d, " % time.time()
+    if charge_status >= 1:
+        disp += "sock charging (%d)" % charge_status
+        # base_station_on is (always?) 1 in this case
+    elif charge_status == 0:
+        if base_station_on == 0:
+            # sock was unplugged, but user did not turn on the base station.
+            # heart and oxygen levels appear to be reported, but we can't
+            # yet assume the sock was placed on the baby's foot.
+            disp += "sock not charging, base station off"
+        elif base_station_on == 1:
+            # base station was intentionally turned on, the sock is presumably
+            # on the baby's foot, so we can trust heart and oxygen levels
+            disp += heart + ", " + oxy + ", " + mov
+            record(disp)
+        else:
+            raise FatalError("Unexpected base_station_on=%d" % base_station_on)
+    log("Status: " + disp)
+
+def loop():
+    global sess
+    sess = requests.session()
+    while True:
+        try:
+            login()
+            fetch_dsn()
+            record_vitals(fetch_props())
+            time.sleep(10)
+        except requests.exceptions.RequestException as e:
+            log('Network error: %s' % e)
+            time.sleep(1)
+            sess = requests.session()
+
+def main():
+    try:
+        loop()
+    except FatalError as e:
+        sys.stderr.write('%s\n' % e)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
