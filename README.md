@@ -10,7 +10,7 @@ on stderr.
 Usage:
 
 ```
-$ env OWLET\_USER=xxx@xxx.xxx OWLET\_PASS=xxx ./owlet\_monitor \>logfile
+$ env OWLET_USER=xxx@xxx.xxx OWLET_PASS=xxx ./owlet_monitor >logfile
 Logging in
 Auth token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Getting DSN
