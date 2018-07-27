@@ -2,21 +2,23 @@ The [Owlet Smart Sock](https://owletcare.com/) stores statistics such as heart
 rate, oxygen level, etc, into the Ayla Networks cloud API. This API is
 documented at: https://developer.aylanetworks.com/apibrowser/
 
-`owlet\_monitor` logs into the Ayla API to fetch these statistics. Every 10
+`owlet_monitor` logs into the Ayla API to fetch these statistics. Every 10
 seconds it prints them on stdout in CSV format. Your owlet username and
 password must be passed via environment variables. Log messages are printed
 on stderr.
 
 Usage:
 
-  $ env OWLET\_USER=xxx@xxx.xxx OWLET\_PASS=xxx ./owlet\_monitor \>logfile
-  Logging in
-  Auth token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  Getting DSN
-  Found Owlet monitor device serial number ACxxxxxxxxxxxxx
-  Status: 1532665440, 131, 100, still
-  Status: 1532665450, 125, 100, still
-  [...]
+```
+$ env OWLET\_USER=xxx@xxx.xxx OWLET\_PASS=xxx ./owlet\_monitor \>logfile
+Logging in
+Auth token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Getting DSN
+Found Owlet monitor device serial number ACxxxxxxxxxxxxx
+Status: 1532665440, 131, 100, still
+Status: 1532665450, 125, 100, still
+[...]
+```
 
 Each CSV line consists of:
 * timestamp
