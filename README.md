@@ -1,5 +1,3 @@
-**This project is no longer maintained. Owlet Baby Care Inc seem to have made API changes around 2019-07-22 that broke this script. See issue #2**
-
 The [Owlet Smart Sock](https://owletcare.com/) stores statistics such as heart
 rate, oxygen level, etc, into the Ayla Networks cloud API. This API is
 documented at: https://developer.aylanetworks.com/apibrowser/
