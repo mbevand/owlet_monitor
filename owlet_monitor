@@ -3,8 +3,8 @@
 import sys, os, time, requests, json
 
 sess = None
-url_login = 'https://user-field.aylanetworks.com/users/sign_in'
-url_base = 'https://ads-field.aylanetworks.com/apiv1'
+url_login = 'https://user-field-1a2039d9.aylanetworks.com/users/sign_in'
+url_base = 'https://ads-field-1a2039d9.aylanetworks.com/apiv1'
 url_devs = url_base + '/devices'
 url_props = None
 url_activate = None
