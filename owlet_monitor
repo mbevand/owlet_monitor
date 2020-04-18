@@ -1,14 +1,19 @@
 #!/usr/bin/python3
+#
+# Dependencies:
+# $ pip3 install python-jwt gcloud sseclient requests_toolbelt firebase
 
-import sys, os, time, requests, json
+import sys, os, time, requests, json, firebase
 
 sess = None
-url_login = 'https://user-field-1a2039d9.aylanetworks.com/users/sign_in'
+url_mini = 'https://ayla-sso.owletdata.com/mini/'
+url_signin = 'https://user-field-1a2039d9.aylanetworks.com/api/v1/token_sign_in'
 url_base = 'https://ads-field-1a2039d9.aylanetworks.com/apiv1'
-url_devs = url_base + '/devices'
+url_devices = url_base + '/devices.json'
 url_props = None
 url_activate = None
-headers = {'Content-Type' : 'application/json', 'Accept' : 'application/json'}
+#headers = {'Content-Type' : 'application/json', 'Accept' : 'application/json'}
+headers = {}
 auth_token = None
 expire_time = 0
 dsn = None
@@ -27,47 +32,62 @@ def record(s):
 def login():
     global auth_token, expire_time
     try:
-        login_payload = {
-          "user": {
-            "email": os.environ['OWLET_USER'],
-            "password": os.environ['OWLET_PASS'],
-            "application": { "app_id": "OWL-id", "app_secret": "OWL-4163742" }
-          }
-        }
+        owlet_user, owlet_pass = os.environ['OWLET_USER'], os.environ['OWLET_PASS']
     except KeyError as e:
         raise FatalError("OWLET_USER or OWLET_PASS env var is not defined")
-    if auth_token is None or (expire_time <= time.time()):
-        log('Logging in')
-        if 'Authorization' in headers: del headers['Authorization']
-        r = sess.post(url_login, json=login_payload, headers=headers)
-        r.raise_for_status()
-        r = r.json()
-        auth_token = r['access_token']
-        # we will re-auth 60 seconds before the token expires
-        expire_time = time.time() + r['expires_in'] - 60
-        headers['Authorization'] = 'auth_token ' + auth_token
-        log('Auth token %s' % auth_token)
+    if auth_token is not None and (expire_time > time.time()):
+        return
+    log('Logging in')
+    # authenticate against Firebase, get the JWT
+    config = {
+            "apiKey": "AIzaSyCsDZ8kWxQuLJAMVnmEhEkayH1TSxKXfGA",
+            "databaseURL": "https://owletcare-prod.firebaseio.com",
+            "storageBucket": "owletcare-prod.appspot.com",
+            "authDomain": None,
+            }
+    auth = firebase.Firebase(config).auth()
+    user = auth.sign_in_with_email_and_password(owlet_user, owlet_pass)
+    jwt = user['idToken']
+    # authenticate against owletdata.com, get the mini_token
+    r = requests.get(url_mini, headers={'Authorization': jwt})
+    r.raise_for_status()
+    mini_token = r.json()['mini_token']
+    # authenticate against Ayla, get the access_token
+    r = requests.post(url_signin, json={
+                "app_id": "sso-prod-3g-id",
+                "app_secret": "sso-prod-UEjtnPCtFfjdwIwxqnC0OipxRFU",
+                "provider": "owl_id",
+                "token": mini_token,
+                })
+    r.raise_for_status()
+    auth_token = r.json()['access_token']
+    # we will re-auth 60 seconds before the token expires
+    expire_time = time.time() + r.json()['expires_in'] - 60
+    headers['Authorization'] = 'auth_token ' + auth_token
+    log('Auth token %s' % auth_token)
 
 def fetch_dsn():
-    global dsn, url_props
+    global dsn, url_props, url_activate
     if dsn is None:
         log('Getting DSN')
-        r = sess.get(url_devs, headers=headers)
+        r = sess.get(url_devices, headers=headers)
         r.raise_for_status()
         devs = r.json()
         if len(devs) < 1:
             raise FatalError('Found zero Owlet monitors')
         dsn = devs[0]['device']['dsn']
         log('Found Owlet monitor device serial number %s' % dsn)
-        url_props = url_base + '/dsns/' + dsn + '/properties'
+        url_props = url_base + '/dsns/' + dsn + '/properties.json'
+        url_activate = url_base + '/dsns/' + dsn + '/properties/APP_ACTIVE/datapoints.json'
 
 def reactivate():
-    payload = { "datapoints": { "value": 1 } }
+    payload = { "datapoint": { "metadata": {}, "value": 1 } }
     r = sess.post(url_activate, json=payload, headers=headers)
     r.raise_for_status()
 
 def fetch_props():
-    global url_activate
+    # Ayla cloud API data is updated only when APP_ACTIVE periodically reset to 1.
+    reactivate()
     my_props = {}
     r = sess.get(url_props, headers=headers)
     r.raise_for_status()
@@ -76,13 +96,6 @@ def fetch_props():
         n = prop['property']['name']
         del(prop['property']['name'])
         my_props[n] = prop['property']
-        # Ayla cloud API data is updated only when APP_ACTIVE periodically
-        # reset to 1.
-        if n == 'APP_ACTIVE':
-            if url_activate is None:
-                url_activate = url_base + \
-                        '/properties/' + str(my_props[n]['key']) + '/datapoints'
-            reactivate()
     return my_props
 
 def record_vitals(p):

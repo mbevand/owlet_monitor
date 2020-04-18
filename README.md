@@ -1,11 +1,17 @@
-The [Owlet Smart Sock](https://owletcare.com/) stores statistics such as heart
-rate, oxygen level, etc, into the Ayla Networks cloud API. This API is
-documented at: https://developer.aylanetworks.com/apibrowser/
+This Python script monitors [Owlet Smart Sock](https://owletcare.com/)
+statistics such as heart rate, oxygen level, etc. Its implementation was made
+possible after reverse engineering the Owlet Android app version 1.1.41
+(latest version as of April 2020) to understand how the data is recorded
+and fetched:
 
-`owlet_monitor` logs into the Ayla API to fetch these statistics. Every 10
-seconds it prints them on stdout in CSV format. Your owlet username and
-password must be passed via environment variables. Log messages are printed
-on stderr.
+* The owlet account email and password are validated using [Firebase Authentication](https://firebase.google.com/docs/auth) — this returns a JWT
+* A GET request authenticated with the JWT is made to https://ayla-sso.owletdata.com/mini/ — this returns a `mini_token`
+* The `mini_token` is used to sign into the [Ayla Networks cloud API](https://developer.aylanetworks.com/apibrowser/)
+* Heart rate, oxygen level, etc are periodically fetched from the Ayla API
+
+`owlet_monitor` prints the statistics every 10 seconds on stdout in CSV format.
+Your owlet username and password must be passed via environment variables. Log
+messages are printed on stderr.
 
 Usage:
 
@@ -26,7 +32,7 @@ Each CSV line consists of:
 * blood oxygen level (%)
 * movement (from sock sensor: baby still or wiggling)
 
-Some details (app id/secret, property names, apparent need to set APP\_ACTIVE=1)
+Many details (app id/secret, property names, apparent need to set APP\_ACTIVE=1)
 were reverse-enginered from Owlet's Android app.
 
 You can place "index.html" and "logfile" in a directory served by a web server
