@@ -6,10 +6,6 @@
 import sys, os, time, requests, json, firebase
 
 sess = None
-url_mini = 'https://ayla-sso.owletdata.com/mini/'
-url_signin = 'https://user-field-1a2039d9.aylanetworks.com/api/v1/token_sign_in'
-url_base = 'https://ads-field-1a2039d9.aylanetworks.com/apiv1'
-url_devices = url_base + '/devices.json'
 url_props = None
 url_activate = None
 #headers = {'Content-Type' : 'application/json', 'Accept' : 'application/json'}
@@ -17,6 +13,29 @@ headers = {}
 auth_token = None
 expire_time = 0
 dsn = None
+owlet_region = 'world'
+region_config = {
+    'world': {
+        'url_mini': 'https://ayla-sso.owletdata.com/mini/',
+        'url_signin': 'https://user-field-1a2039d9.aylanetworks.com/api/v1/token_sign_in',
+        'url_base': 'https://ads-field-1a2039d9.aylanetworks.com/apiv1',
+        'apiKey': 'AIzaSyCsDZ8kWxQuLJAMVnmEhEkayH1TSxKXfGA',
+        'databaseURL': 'https://owletcare-prod.firebaseio.com',
+        'storage_bucket': 'owletcare-prod.appspot.com',
+        'app_id': 'sso-prod-3g-id',
+        'app_secret': 'sso-prod-UEjtnPCtFfjdwIwxqnC0OipxRFU',
+    },
+    'europe': {
+        'url_mini': 'https://ayla-sso.eu.owletdata.com/mini/',
+        'url_signin': 'https://user-field-eu-1a2039d9.aylanetworks.com/api/v1/token_sign_in',
+        'url_base': 'https://ads-field-eu-1a2039d9.aylanetworks.com/apiv1',
+        'apiKey': 'AIzaSyDm6EhV70wudwN3iOSq3vTjtsdGjdFLuuM',
+        'databaseURL': 'https://owletcare-prod-eu.firebaseio.com',
+        'storage_bucket': 'owletcare-prod-eu.appspot.com',
+        'app_id': 'OwletCare-Android-EU-fw-id',
+        'app_secret': 'OwletCare-Android-EU-JKupMPBoj_Npce_9a95Pc8Qo0Mw',
+    }
+}
 
 class FatalError(Exception):
     pass
@@ -30,32 +49,41 @@ def record(s):
     sys.stdout.flush()
 
 def login():
-    global auth_token, expire_time
+    global auth_token, expire_time, owlet_region
     try:
         owlet_user, owlet_pass = os.environ['OWLET_USER'], os.environ['OWLET_PASS']
     except KeyError as e:
         raise FatalError("OWLET_USER or OWLET_PASS env var is not defined")
+    
+    if 'OWLET_REGION' in os.environ:
+        owlet_region = os.environ['OWLET_REGION']
+
+    if owlet_region not in region_config:
+        raise FatalError("OWLET_REGION env var '{}' not recognised - must be one of {}".format(
+            owlet_region, region_config.keys()))
+
     if auth_token is not None and (expire_time > time.time()):
         return
     log('Logging in')
     # authenticate against Firebase, get the JWT
     config = {
-            "apiKey": "AIzaSyCsDZ8kWxQuLJAMVnmEhEkayH1TSxKXfGA",
-            "databaseURL": "https://owletcare-prod.firebaseio.com",
-            "storageBucket": "owletcare-prod.appspot.com",
+            "apiKey": region_config[owlet_region]['apiKey'],
+            "databaseURL": region_config[owlet_region]['databaseURL'],
+            "storageBucket": region_config[owlet_region]['storage_bucket'],
             "authDomain": None,
             }
     auth = firebase.Firebase(config).auth()
     user = auth.sign_in_with_email_and_password(owlet_user, owlet_pass)
     jwt = user['idToken']
     # authenticate against owletdata.com, get the mini_token
-    r = requests.get(url_mini, headers={'Authorization': jwt})
+    r = requests.get(region_config[owlet_region]
+                     ['url_mini'], headers={'Authorization': jwt})
     r.raise_for_status()
     mini_token = r.json()['mini_token']
     # authenticate against Ayla, get the access_token
-    r = requests.post(url_signin, json={
-                "app_id": "sso-prod-3g-id",
-                "app_secret": "sso-prod-UEjtnPCtFfjdwIwxqnC0OipxRFU",
+    r = requests.post(region_config[owlet_region]['url_signin'], json={
+                "app_id": region_config[owlet_region]['app_id'],
+                "app_secret": region_config[owlet_region]['app_secret'],
                 "provider": "owl_id",
                 "token": mini_token,
                 })
@@ -70,15 +98,18 @@ def fetch_dsn():
     global dsn, url_props, url_activate
     if dsn is None:
         log('Getting DSN')
-        r = sess.get(url_devices, headers=headers)
+        r = sess.get(region_config[owlet_region]
+                     ['url_base'] + '/devices.json', headers=headers)
         r.raise_for_status()
         devs = r.json()
         if len(devs) < 1:
             raise FatalError('Found zero Owlet monitors')
         dsn = devs[0]['device']['dsn']
         log('Found Owlet monitor device serial number %s' % dsn)
-        url_props = url_base + '/dsns/' + dsn + '/properties.json'
-        url_activate = url_base + '/dsns/' + dsn + '/properties/APP_ACTIVE/datapoints.json'
+        url_props = region_config[owlet_region]['url_base'] + \
+            '/dsns/' + dsn + '/properties.json'
+        url_activate = region_config[owlet_region]['url_base'] + \
+            '/dsns/' + dsn + '/properties/APP_ACTIVE/datapoints.json'
 
 def reactivate():
     payload = { "datapoint": { "metadata": {}, "value": 1 } }
