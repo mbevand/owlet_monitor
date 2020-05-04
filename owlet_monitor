@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 # Dependencies:
-# $ pip3 install python-jwt gcloud sseclient requests_toolbelt firebase pycryptodome
+# $ pip3 install python-jwt gcloud sseclient requests_toolbelt firebase
 
 import sys, os, time, requests, json, firebase
 
