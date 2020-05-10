@@ -107,29 +107,43 @@ def fetch_dsn():
         devs = r.json()
         if len(devs) < 1:
             raise FatalError('Found zero Owlet monitors')
-        dsn = devs[0]['device']['dsn']
-        log('Found Owlet monitor device serial number %s' % dsn)
-        url_props = region_config[owlet_region]['url_base'] + \
-            '/dsns/' + dsn + '/properties.json'
-        url_activate = region_config[owlet_region]['url_base'] + \
-            '/dsns/' + dsn + '/properties/APP_ACTIVE/datapoints.json'
+        # Allow for multiple devices
+        dsn = []
+        url_props = []
+        url_activate = [] 
+        for device in devs:
+            device_sn = device['device']['dsn']
+            dsn.append(device_sn)
+            log('Found Owlet monitor device serial number %s' % device_sn)
+            url_props.append(
+                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn 
+                + '/properties.json'
+            )
+            url_activate.append(
+                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn 
+                + '/properties/APP_ACTIVE/datapoints.json'
+            )
 
-def reactivate():
+def reactivate(url_activate):
     payload = { "datapoint": { "metadata": {}, "value": 1 } }
     r = sess.post(url_activate, json=payload, headers=headers)
     r.raise_for_status()
 
 def fetch_props():
     # Ayla cloud API data is updated only when APP_ACTIVE periodically reset to 1.
-    reactivate()
-    my_props = {}
-    r = sess.get(url_props, headers=headers)
-    r.raise_for_status()
-    props = r.json()
-    for prop in props:
-        n = prop['property']['name']
-        del(prop['property']['name'])
-        my_props[n] = prop['property']
+    my_props = []
+    # Get properties for each device; note no pause between requests for each device
+    for next_url_activate,next_url_props in zip(url_activate,url_props):
+        reactivate(next_url_activate)
+        device_props = {}
+        r = sess.get(next_url_props, headers=headers)
+        r.raise_for_status()
+        props = r.json()
+        for prop in props:
+            n = prop['property']['name']
+            del(prop['property']['name'])
+            device_props[n] = prop['property']
+        my_props.append(device_props)
     return my_props
 
 def record_vitals(p):
@@ -164,7 +178,8 @@ def loop():
         try:
             login()
             fetch_dsn()
-            record_vitals(fetch_props())
+            for prop in fetch_props():
+                record_vitals(prop)
             time.sleep(10)
         except requests.exceptions.RequestException as e:
             log('Network error: %s' % e)
