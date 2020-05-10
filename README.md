@@ -31,6 +31,7 @@ Each CSV line consists of:
 * heart rate (BPM)
 * blood oxygen level (%)
 * movement (from sock sensor: baby still or wiggling)
+* device serial number (useful for multiple babies/owlet devices)
 
 If you are using an Owlet in Europe, set the `OWLET_REGION` environment variable to `europe` to use the European servers otherwise you may get a `400`/`EMAIL_NOT_FOUND` error.
 
