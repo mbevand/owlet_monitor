@@ -133,9 +133,9 @@ def fetch_props():
     # Ayla cloud API data is updated only when APP_ACTIVE periodically reset to 1.
     my_props = []
     # Get properties for each device; note no pause between requests for each device
-    for next_url_activate,next_url_props in zip(url_activate,url_props):
+    for device_sn,next_url_activate,next_url_props in zip(dsn,url_activate,url_props):
         reactivate(next_url_activate)
-        device_props = {}
+        device_props = {'DSN':device_sn}
         r = sess.get(next_url_props, headers=headers)
         r.raise_for_status()
         props = r.json()
@@ -147,6 +147,7 @@ def fetch_props():
     return my_props
 
 def record_vitals(p):
+    device_sn = p['DSN']
     charge_status = p['CHARGE_STATUS']['value']
     base_station_on = p['BASE_STATION_ON']['value']
     heart = "%d" % p['HEART_RATE']['value']
@@ -165,11 +166,11 @@ def record_vitals(p):
         elif base_station_on == 1:
             # base station was intentionally turned on, the sock is presumably
             # on the baby's foot, so we can trust heart and oxygen levels
-            disp += heart + ", " + oxy + ", " + mov
+            disp += heart + ", " + oxy + ", " + mov + ", " + device_sn
             record(disp)
         else:
             raise FatalError("Unexpected base_station_on=%d" % base_station_on)
-    log("Status: " + disp)
+    log("%s Status: " % device_sn + disp)
 
 def loop():
     global sess
