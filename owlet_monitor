@@ -61,14 +61,11 @@ def login():
             raise FatalError("OWLET_PASS is empty")
     except KeyError as e:
         raise FatalError("OWLET_USER or OWLET_PASS env var is not defined")
-    
     if 'OWLET_REGION' in os.environ:
         owlet_region = os.environ['OWLET_REGION']
-
     if owlet_region not in region_config:
         raise FatalError("OWLET_REGION env var '{}' not recognised - must be one of {}".format(
             owlet_region, region_config.keys()))
-
     if auth_token is not None and (expire_time > time.time()):
         return
     log('Logging in')
@@ -114,17 +111,17 @@ def fetch_dsn():
         # Allow for multiple devices
         dsn = []
         url_props = []
-        url_activate = [] 
+        url_activate = []
         for device in devs:
             device_sn = device['device']['dsn']
             dsn.append(device_sn)
             log('Found Owlet monitor device serial number %s' % device_sn)
             url_props.append(
-                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn 
+                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn
                 + '/properties.json'
             )
             url_activate.append(
-                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn 
+                region_config[owlet_region]['url_base'] + '/dsns/' + device_sn
                 + '/properties/APP_ACTIVE/datapoints.json'
             )
 
