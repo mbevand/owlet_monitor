@@ -55,6 +55,10 @@ def login():
     global auth_token, expire_time, owlet_region
     try:
         owlet_user, owlet_pass = os.environ['OWLET_USER'], os.environ['OWLET_PASS']
+        if not len(owlet_user):
+            raise FatalError("OWLET_USER is empty")
+        if not len(owlet_pass):
+            raise FatalError("OWLET_PASS is empty")
     except KeyError as e:
         raise FatalError("OWLET_USER or OWLET_PASS env var is not defined")
     
