@@ -23,8 +23,6 @@ region_config = {
         'url_signin': 'https://user-field-1a2039d9.aylanetworks.com/api/v1/token_sign_in',
         'url_base': 'https://ads-field-1a2039d9.aylanetworks.com/apiv1',
         'apiKey': 'AIzaSyCsDZ8kWxQuLJAMVnmEhEkayH1TSxKXfGA',
-        'databaseURL': 'https://owletcare-prod.firebaseio.com',
-        'storage_bucket': 'owletcare-prod.appspot.com',
         'app_id': 'sso-prod-3g-id',
         'app_secret': 'sso-prod-UEjtnPCtFfjdwIwxqnC0OipxRFU',
     },
@@ -33,8 +31,6 @@ region_config = {
         'url_signin': 'https://user-field-eu-1a2039d9.aylanetworks.com/api/v1/token_sign_in',
         'url_base': 'https://ads-field-eu-1a2039d9.aylanetworks.com/apiv1',
         'apiKey': 'AIzaSyDm6EhV70wudwN3iOSq3vTjtsdGjdFLuuM',
-        'databaseURL': 'https://owletcare-prod-eu.firebaseio.com',
-        'storage_bucket': 'owletcare-prod-eu.appspot.com',
         'app_id': 'OwletCare-Android-EU-fw-id',
         'app_secret': 'OwletCare-Android-EU-JKupMPBoj_Npce_9a95Pc8Qo0Mw',
     }
@@ -69,17 +65,12 @@ def login():
     if auth_token is not None and (expire_time > time.time()):
         return
     log('Logging in')
-    # authenticate against Firebase, get the JWT
-    config = {
-            "apiKey": region_config[owlet_region]['apiKey'],
-            "databaseURL": region_config[owlet_region]['databaseURL'],
-            "storageBucket": region_config[owlet_region]['storage_bucket'],
-            "authDomain": None,
-            }
+    # authenticate against Firebase, get the JWT.
     # need to pass the X-Android-Package and X-Android-Cert headers because
-    # the API key is restricted to this specific Android app:
+    # the API key is restricted to the Owlet Android app
     # https://cloud.google.com/docs/authentication/api-keys#api_key_restrictions
-    r = requests.post(f'https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={config["apiKey"]}',
+    api_key = region_config[owlet_region]['apiKey']
+    r = requests.post(f'https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={api_key}',
             data=json.dumps({'email': owlet_user, 'password': owlet_pass, 'returnSecureToken': True}),
             headers={
                 'X-Android-Package': 'com.owletcare.owletcare',
