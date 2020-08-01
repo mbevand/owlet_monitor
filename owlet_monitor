@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 #
 # Dependencies (Linux):
-# $ pip3 install python-jwt gcloud sseclient requests_toolbelt firebase
+# $ pip3 install python-jwt gcloud sseclient requests_toolbelt
 #
 # Extra dependencies (Windows 10):
 # $ pip3 install pycryptodome
 
-import sys, os, time, requests, json, firebase
+import sys, os, time, requests, json
 
 sess = None
 url_props = None
@@ -76,9 +76,17 @@ def login():
             "storageBucket": region_config[owlet_region]['storage_bucket'],
             "authDomain": None,
             }
-    auth = firebase.Firebase(config).auth()
-    user = auth.sign_in_with_email_and_password(owlet_user, owlet_pass)
-    jwt = user['idToken']
+    # need to pass the X-Android-Package and X-Android-Cert headers because
+    # the API key is restricted to this specific Android app:
+    # https://cloud.google.com/docs/authentication/api-keys#api_key_restrictions
+    r = requests.post(f'https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={config["apiKey"]}',
+            data=json.dumps({'email': owlet_user, 'password': owlet_pass, 'returnSecureToken': True}),
+            headers={
+                'X-Android-Package': 'com.owletcare.owletcare',
+                'X-Android-Cert': '2A3BC26DB0B8B0792DBE28E6FFDC2598F9B12B74'
+        })
+    r.raise_for_status()
+    jwt = r.json()['idToken']
     # authenticate against owletdata.com, get the mini_token
     r = requests.get(region_config[owlet_region]
                      ['url_mini'], headers={'Authorization': jwt})
